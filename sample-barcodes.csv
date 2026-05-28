@@ -1,0 +1,6 @@
+barcode,note
+885909950805,known reused barcode (Apple)
+4006381333931,known reused barcode (Stabilo)
+8993451200872,constructed valid GTIN (likely unused)
+1234567890123,invalid check digit
+0123,invalid length

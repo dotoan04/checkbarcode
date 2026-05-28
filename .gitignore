@@ -1,0 +1,14 @@
+/node_modules
+/.next
+/out
+/build
+*.tsbuildinfo
+next-env.d.ts
+
+# local env & logs — keep secrets out of git (but track .env.example)
+.env
+.env.*
+!.env.example
+dev.log
+resp.json
+shot-*.png
