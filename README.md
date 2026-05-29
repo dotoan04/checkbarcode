@@ -67,4 +67,16 @@ lib/
   excel.ts              Excel/CSV import & export
   providers/            one file per layer (gs1, upcitemdb, amazon, google, web)
 components/             InputPanel, ResultsTable, ResultDetail
+docs/                   full bilingual documentation (EN / VN)
 ```
+
+## Full documentation
+
+See [`docs/`](docs/) for the complete bilingual (EN/VN) documentation:
+
+- [`docs/overview.md`](docs/overview.md) — problem, solution, audience
+- [`docs/architecture.md`](docs/architecture.md) — pipeline, layers, scoring engine
+- [`docs/usage-guide.md`](docs/usage-guide.md) — web UI + REST API
+- [`docs/configuration.md`](docs/configuration.md) — env vars + in-code config
+- [`docs/deployment.md`](docs/deployment.md) — Docker + Nginx + SSL + ops
+- [`docs/troubleshooting.md`](docs/troubleshooting.md) — common errors, Amazon SP-API gotchas
