@@ -60,16 +60,29 @@ async function getAccessToken(): Promise<string> {
       client_id: CLIENT_ID as string,
       client_secret: CLIENT_SECRET as string,
     });
+    console.log("[amazon] LWA token exchange: POST", LWA_TOKEN_URL);
     const res = await fetchWithTimeout(LWA_TOKEN_URL, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: body.toString(),
     });
     if (!res.ok) {
-      throw new Error(`LWA token exchange failed (HTTP ${res.status}).`);
+      const errBody = await res.text().catch(() => "<unreadable body>");
+      console.error(
+        `[amazon] LWA token exchange failed: HTTP ${res.status} ${res.statusText}`,
+        "body:",
+        errBody.slice(0, 1000)
+      );
+      throw new Error(`LWA token exchange failed (HTTP ${res.status}): ${errBody.slice(0, 300)}`);
     }
     const data = (await res.json()) as { access_token?: string; expires_in?: number };
-    if (!data.access_token) throw new Error("LWA response missing access_token.");
+    if (!data.access_token) {
+      console.error("[amazon] LWA response missing access_token. Keys:", Object.keys(data));
+      throw new Error("LWA response missing access_token.");
+    }
+    console.log(
+      `[amazon] LWA token OK (expires_in=${data.expires_in ?? "?"}s)`
+    );
     tokenCache = {
       token: data.access_token,
       expiresAt: Date.now() + (data.expires_in ?? 3600) * 1000,
@@ -130,6 +143,7 @@ export const amazonProvider: Provider = {
     try {
       token = await getAccessToken();
     } catch (err) {
+      console.error("[amazon] getAccessToken failed:", err);
       return {
         status: "UNKNOWN",
         evidence: [],
@@ -145,34 +159,64 @@ export const amazonProvider: Provider = {
       pageSize: "10",
     });
     const url = `${ENDPOINT}/catalog/2022-04-01/items?${params.toString()}`;
+    console.log(
+      `[amazon] Catalog request: GET ${url} (gtin=${gtin.normalized}, type=${identifierType(gtin)}, marketplace=${MARKETPLACE_ID})`
+    );
 
     let res: Response;
     try {
       res = await fetchWithTimeout(url, { headers: { "x-amz-access-token": token } });
-    } catch {
-      return { status: "ERROR", evidence: [], note: "Catalog request failed or timed out." };
+    } catch (err) {
+      console.error("[amazon] Catalog fetch error:", err);
+      return {
+        status: "ERROR",
+        evidence: [],
+        note: `Catalog request failed or timed out: ${err instanceof Error ? err.message : String(err)}`,
+      };
     }
 
-    if (res.status === 429) {
-      return { status: "UNKNOWN", evidence: [], note: "Amazon rate limit reached; retry later." };
-    }
-    if (res.status === 403) {
+    console.log(
+      `[amazon] Catalog response: HTTP ${res.status} ${res.statusText} (x-amzn-RequestId=${res.headers.get("x-amzn-requestid") ?? "-"})`
+    );
+
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => "<unreadable body>");
+      console.error(
+        `[amazon] Catalog error body (HTTP ${res.status}):`,
+        errBody.slice(0, 2000)
+      );
+
+      if (res.status === 429) {
+        return {
+          status: "UNKNOWN",
+          evidence: [],
+          note: `Amazon rate limit reached; retry later. ${errBody.slice(0, 200)}`,
+        };
+      }
+      if (res.status === 403) {
+        return {
+          status: "UNKNOWN",
+          evidence: [],
+          note: `Amazon returned 403. Check the app role has the Catalog Items (Product Listing) scope. Detail: ${errBody.slice(0, 300)}`,
+        };
+      }
       return {
         status: "UNKNOWN",
         evidence: [],
-        note: "Amazon returned 403. Check the app role has the Catalog Items (Product Listing) scope.",
+        note: `Amazon catalog HTTP ${res.status}: ${errBody.slice(0, 300)}`,
       };
-    }
-    if (!res.ok) {
-      return { status: "UNKNOWN", evidence: [], note: `Amazon catalog HTTP ${res.status}.` };
     }
 
     let data: CatalogResponse;
     try {
       data = (await res.json()) as CatalogResponse;
-    } catch {
+    } catch (err) {
+      console.error("[amazon] Unparseable Amazon response:", err);
       return { status: "UNKNOWN", evidence: [], note: "Unparseable Amazon response." };
     }
+    console.log(
+      `[amazon] Catalog parsed: numberOfResults=${data.numberOfResults ?? "?"} items=${data.items?.length ?? 0}`
+    );
 
     const items = data.items ?? [];
     if (!items.length) {

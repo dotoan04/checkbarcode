@@ -37,6 +37,7 @@ export async function checkOne(
         const output = await p.run(analysis, ctx);
         return scoreLayer(p.id, p.name, output, Date.now() - start);
       } catch (err) {
+        console.error(`[provider:${p.id}] Uncaught error:`, err);
         return scoreLayer(
           p.id,
           p.name,
